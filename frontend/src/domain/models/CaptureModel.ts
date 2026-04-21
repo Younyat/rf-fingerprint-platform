@@ -1,0 +1,1 @@
+﻿export interface CaptureModel { id: string; emitter_device_id: string; session_id: string; cfile_path: string; metadata_path: string; center_frequency_hz: number; sample_rate_hz: number; duration_seconds: number; }

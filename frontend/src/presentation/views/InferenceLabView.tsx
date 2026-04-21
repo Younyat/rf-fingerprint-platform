@@ -1,0 +1,1 @@
+﻿import { InferenceForm } from "../components/inference/InferenceForm"; import { InferenceResultCard } from "../components/inference/InferenceResultCard"; import { DistanceProfileTable } from "../components/inference/DistanceProfileTable"; export function InferenceLabView() { return <div className="grid"><InferenceForm /><InferenceResultCard /><DistanceProfileTable /></div>; }

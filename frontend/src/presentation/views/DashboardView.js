@@ -1,0 +1,5 @@
+import { jsx as _jsx, jsxs as _jsxs } from "react/jsx-runtime";
+import { Link } from "react-router-dom";
+export function DashboardView() {
+    return (_jsxs("div", { className: "grid grid-2", children: [_jsxs("div", { className: "panel", children: [_jsx("h3", { children: "Capture Lab" }), _jsx("p", { children: "Captura se\u00F1ales RF y genera dataset train/val." }), _jsx(Link, { to: "/capture", children: "Ir a captura" })] }), _jsxs("div", { className: "panel", children: [_jsx("h3", { children: "Training Lab" }), _jsx("p", { children: "Lanza entrenamiento remoto con GPU." }), _jsx(Link, { to: "/training", children: "Ir a training" })] }), _jsxs("div", { className: "panel", children: [_jsx("h3", { children: "Validation Lab" }), _jsx("p", { children: "Valida modelo con dataset separado de validaci\u00F3n." }), _jsx(Link, { to: "/validation", children: "Ir a validaci\u00F3n" })] }), _jsxs("div", { className: "panel", children: [_jsx("h3", { children: "Dataset Manager" }), _jsx("p", { children: "Consulta stats y reglas cient\u00EDficas b\u00E1sicas del dataset." }), _jsx(Link, { to: "/dataset", children: "Ir a dataset" })] })] }));
+}
