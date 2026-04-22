@@ -17,8 +17,10 @@ TEMP_DIR = STORAGE_DIR / "temp"
 PROJECT_DATA_DIR = PLATFORM_ROOT / "data"
 TRAIN_DATASET_DIR = PROJECT_DATA_DIR / "rf_dataset"
 VAL_DATASET_DIR = PROJECT_DATA_DIR / "rf_dataset_val"
+PREDICT_DATASET_DIR = PROJECT_DATA_DIR / "rf_dataset_predict"
 MODEL_OUTPUT_DIR = PROJECT_DATA_DIR / "remote_trained_model"
 VALIDATION_OUTPUT_DIR = PROJECT_DATA_DIR / "validation"
+INFERENCE_OUTPUT_DIR = PROJECT_DATA_DIR / "inference"
 
 
 def ensure_dirs() -> None:
@@ -32,7 +34,9 @@ def ensure_dirs() -> None:
         PROJECT_DATA_DIR,
         TRAIN_DATASET_DIR,
         VAL_DATASET_DIR,
+        PREDICT_DATASET_DIR,
         MODEL_OUTPUT_DIR,
         VALIDATION_OUTPUT_DIR,
+        INFERENCE_OUTPUT_DIR,
     ]:
         p.mkdir(parents=True, exist_ok=True)

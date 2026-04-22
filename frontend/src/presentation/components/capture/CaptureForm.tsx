@@ -1,15 +1,20 @@
-﻿import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { CaptureController } from "../../controllers/CaptureController";
+
+const CAPTURE_JOB_KEY = "rfp.capture.jobId";
 
 interface CaptureFormProps {
   onCreated?: () => void;
 }
 
 export function CaptureForm({ onCreated }: CaptureFormProps) {
-  const controller = new CaptureController();
+  const controller = useMemo(() => new CaptureController(), []);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [result, setResult] = useState<any>(null);
+  const [startResult, setStartResult] = useState<any>(null);
+  const [jobStatus, setJobStatus] = useState<any>(null);
+  const [jobId, setJobId] = useState<string>(() => localStorage.getItem(CAPTURE_JOB_KEY) || "");
+  const pollRef = useRef<number | null>(null);
 
   const [form, setForm] = useState({
     emitter_device_id: "remote_001",
@@ -24,20 +29,74 @@ export function CaptureForm({ onCreated }: CaptureFormProps) {
     python_exe: "C:/Users/Usuario/radioconda/python.exe",
   });
 
+  const stopPolling = () => {
+    if (pollRef.current !== null) {
+      window.clearInterval(pollRef.current);
+      pollRef.current = null;
+    }
+  };
+
+  const pollStatus = async (id?: string) => {
+    try {
+      const status = await controller.status(id);
+      setJobStatus(status);
+      if (status?.job_id) {
+        setJobId(status.job_id);
+        localStorage.setItem(CAPTURE_JOB_KEY, status.job_id);
+      }
+      if (status.status === "completed" || status.status === "failed") {
+        stopPolling();
+        if (status.status === "completed") {
+          onCreated?.();
+        }
+      }
+    } catch (err: any) {
+      setError(String(err));
+      stopPolling();
+    }
+  };
+
+  const startPolling = (id?: string) => {
+    stopPolling();
+    void pollStatus(id);
+    pollRef.current = window.setInterval(() => {
+      void pollStatus(id || jobId || undefined);
+    }, 1500);
+  };
+
   const submit = async (e: FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError("");
+    setStartResult(null);
+    setJobStatus(null);
+    stopPolling();
     try {
-      const res = await controller.create(form);
-      setResult(res);
-      onCreated?.();
+      const res = await controller.start(form);
+      setStartResult(res);
+      if (res?.job_id) {
+        setJobId(res.job_id);
+        localStorage.setItem(CAPTURE_JOB_KEY, res.job_id);
+        startPolling(res.job_id);
+      }
     } catch (err: any) {
       setError(String(err));
     } finally {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (jobId) {
+      startPolling(jobId);
+      return () => stopPolling();
+    }
+    void pollStatus(undefined);
+    return () => stopPolling();
+  }, []);
+
+  const effectiveStatus = String(jobStatus?.status || startResult?.status || "").toLowerCase();
+  const isCaptureRunning = loading || effectiveStatus === "running";
 
   return (
     <div className="panel">
@@ -52,13 +111,26 @@ export function CaptureForm({ onCreated }: CaptureFormProps) {
         <select value={form.split} onChange={(e) => setForm({ ...form, split: e.target.value })}>
           <option value="train">train</option>
           <option value="val">val</option>
+          <option value="predict">predict</option>
         </select>
         <input value={form.python_exe} onChange={(e) => setForm({ ...form, python_exe: e.target.value })} placeholder="python executable" />
-        <button disabled={loading} type="submit">{loading ? "Capturando..." : "Capturar"}</button>
+        <button disabled={isCaptureRunning} type="submit">
+          {isCaptureRunning
+            ? `Captura en curso... ${jobStatus?.job_id || startResult?.job_id || jobId || ""}`.trim()
+            : "Capturar"}
+        </button>
       </form>
 
       {error && <pre style={{ color: "#b42318", whiteSpace: "pre-wrap" }}>{error}</pre>}
-      {result && <pre style={{ whiteSpace: "pre-wrap" }}>{JSON.stringify(result, null, 2)}</pre>}
+      {startResult && <pre style={{ whiteSpace: "pre-wrap" }}>{JSON.stringify(startResult, null, 2)}</pre>}
+      {jobStatus && (
+        <div style={{ marginTop: 10 }}>
+          <div><strong>Estado:</strong> {jobStatus.status}</div>
+          <div><strong>Job ID:</strong> {jobStatus.job_id || jobId || "-"}</div>
+          <pre className="log-box">{jobStatus.stdout || ""}</pre>
+          {!!jobStatus.stderr && <pre className="log-box error-log">{jobStatus.stderr}</pre>}
+        </div>
+      )}
     </div>
   );
 }

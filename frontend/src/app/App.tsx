@@ -12,6 +12,7 @@ export function App() {
           <Link to="/capture">Capture</Link>
           <Link to="/dataset">Dataset</Link>
           <Link to="/training">Training</Link>
+          <Link to="/retraining">Retraining</Link>
           <Link to="/validation">Validation</Link>
           <Link to="/inference">Inference</Link>
           <Link to="/models">Models</Link>

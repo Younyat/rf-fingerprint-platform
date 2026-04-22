@@ -53,6 +53,7 @@ class LaunchRemoteTrainingUseCase:
             command=cmd,
             cwd=str(self.scripts_dir),
             metadata={
+                "job_type": "training",
                 "remote_user": payload.get("remote_user"),
                 "remote_host": payload.get("remote_host"),
                 "local_dataset_dir": str(local_dataset),

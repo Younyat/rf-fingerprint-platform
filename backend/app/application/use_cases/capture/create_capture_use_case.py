@@ -15,6 +15,7 @@ class CreateCaptureUseCase:
         scripts_dir: Path,
         train_dataset_dir: Path,
         val_dataset_dir: Path,
+        predict_dataset_dir: Path,
         default_python: str,
     ) -> None:
         self.capture_repo = capture_repo
@@ -22,15 +23,21 @@ class CreateCaptureUseCase:
         self.scripts_dir = scripts_dir
         self.train_dataset_dir = train_dataset_dir
         self.val_dataset_dir = val_dataset_dir
+        self.predict_dataset_dir = predict_dataset_dir
         self.default_python = default_python
 
     def execute(self, data: dict) -> RFCapture:
         capture_id = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
         split = data.get("split", "train").strip().lower()
-        if split not in {"train", "val"}:
+        if split not in {"train", "val", "predict"}:
             split = "train"
 
-        dataset_dir = self.train_dataset_dir if split == "train" else self.val_dataset_dir
+        if split == "train":
+            dataset_dir = self.train_dataset_dir
+        elif split == "val":
+            dataset_dir = self.val_dataset_dir
+        else:
+            dataset_dir = self.predict_dataset_dir
         dataset_dir.mkdir(parents=True, exist_ok=True)
 
         python_exe = data.get("python_exe") or self.default_python

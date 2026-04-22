@@ -30,3 +30,9 @@ def status(job_id: str | None = Query(default=None), container=Depends(get_conta
 @router.get("/models")
 def models(container=Depends(get_container)):
     return container.training_controller.list_models()
+
+
+@router.get("/dashboard")
+def dashboard(local_output_dir: str | None = Query(default=None), container=Depends(get_container)):
+    payload = {"local_output_dir": local_output_dir} if local_output_dir else {}
+    return container.training_controller.dashboard(payload=payload)

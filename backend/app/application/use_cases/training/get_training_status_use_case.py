@@ -6,4 +6,4 @@ class GetTrainingStatusUseCase:
         self.job_manager = job_manager
 
     def execute(self, job_id: str | None = None) -> dict:
-        return self.job_manager.get_status(job_id=job_id)
+        return self.job_manager.get_status(job_id=job_id, job_type="training")

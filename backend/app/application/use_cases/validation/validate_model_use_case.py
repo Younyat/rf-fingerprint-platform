@@ -1,7 +1,5 @@
 import json
-import shutil
 from pathlib import Path
-from tempfile import TemporaryDirectory
 
 from app.infrastructure.remote.ssh_remote_executor import SSHRemoteExecutor
 
@@ -32,45 +30,7 @@ class ValidateModelUseCase:
             return p
         return self.project_data_dir / p
 
-    @staticmethod
-    def _prepare_selected_subset(temp_root: Path, selected_metadata_paths: list[str]) -> Path:
-        subset_root = temp_root / "selected_val_subset"
-        subset_root.mkdir(parents=True, exist_ok=True)
-
-        copied = 0
-        for item in selected_metadata_paths:
-            meta_path = Path(str(item)).expanduser().resolve()
-            if not meta_path.exists():
-                raise RuntimeError(f"Selected metadata file does not exist: {meta_path}")
-
-            try:
-                meta = json.loads(meta_path.read_text(encoding="utf-8"))
-            except Exception as exc:
-                raise RuntimeError(f"Invalid metadata JSON: {meta_path}. Error: {exc}") from exc
-
-            iq_file = str(meta.get("iq_file", "")).strip()
-            cfile_path = Path(iq_file).expanduser().resolve() if iq_file else meta_path.with_suffix(".cfile").resolve()
-            if not cfile_path.exists():
-                raise RuntimeError(f"CFILE for selected metadata does not exist: {cfile_path}")
-
-            emitter = str(meta.get("emitter_device_id", "")).strip() or "unknown_emitter"
-            session = str(meta.get("session_id", "")).strip() or "unknown_session"
-
-            target_dir = subset_root / emitter / session
-            target_dir.mkdir(parents=True, exist_ok=True)
-            target_cfile = target_dir / cfile_path.name
-            target_meta = target_dir / meta_path.name
-
-            shutil.copy2(cfile_path, target_cfile)
-            meta["iq_file"] = str(target_cfile.resolve())
-            target_meta.write_text(json.dumps(meta, indent=2, ensure_ascii=False), encoding="utf-8")
-            copied += 1
-
-        if copied == 0:
-            raise RuntimeError("No selected validation records were copied")
-        return subset_root
-
-    def execute(self, payload: dict) -> dict:
+    def build_command(self, payload: dict) -> tuple[list[str], Path]:
         python_exe = payload.get("python_exe") or self.default_python
         val_root = self._resolve_data_path(payload.get("val_root"), self.val_dataset_dir)
         model_dir = self._resolve_data_path(payload.get("model_dir"), self.model_output_dir)
@@ -82,31 +42,29 @@ class ValidateModelUseCase:
             raise RuntimeError("selected_metadata_paths must be a list")
 
         script = self.scripts_dir / "validate_rf_fingerprint.py"
+        cmd = [
+            python_exe,
+            str(script),
+            "--val-root",
+            str(val_root),
+            "--model-dir",
+            str(model_dir),
+            "--output-json",
+            str(output_json),
+            "--batch-size",
+            str(int(payload.get("batch_size", 256))),
+        ]
+        for item in selected_metadata_paths:
+            cmd.extend(["--selected-metadata-path", str(item)])
+        return cmd, output_json
 
-        with TemporaryDirectory(prefix="rf_val_subset_", dir=str(output_json.parent)) as temp_dir:
-            effective_val_root = val_root
-            if selected_metadata_paths:
-                effective_val_root = self._prepare_selected_subset(Path(temp_dir), selected_metadata_paths)
-
-            cmd = [
-                python_exe,
-                str(script),
-                "--val-root",
-                str(effective_val_root),
-                "--model-dir",
-                str(model_dir),
-                "--output-json",
-                str(output_json),
-                "--batch-size",
-                str(int(payload.get("batch_size", 256))),
-            ]
-
-            result = self.executor.run(cmd, cwd=str(self.scripts_dir))
-
+    def execute(self, payload: dict) -> dict:
+        cmd, output_json = self.build_command(payload)
+        result = self.executor.run(cmd, cwd=str(self.scripts_dir))
         response = {
             "command_result": result,
             "output_json": str(output_json),
-            "selected_count": len(selected_metadata_paths),
+            "selected_count": len(payload.get("selected_metadata_paths") or []),
         }
 
         if result["returncode"] == 0 and output_json.exists():

@@ -14,6 +14,11 @@ export function DashboardView() {
         <Link to="/training">Ir a training</Link>
       </div>
       <div className="panel">
+        <h3>Continual Retraining</h3>
+        <p>Reentrena preservando historial completo y trazabilidad de versiones.</p>
+        <Link to="/retraining">Ir a retraining</Link>
+      </div>
+      <div className="panel">
         <h3>Validation Lab</h3>
         <p>Valida modelo con dataset separado de validación.</p>
         <Link to="/validation">Ir a validación</Link>

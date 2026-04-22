@@ -11,6 +11,7 @@ class TrainingJobManager:
         self._lock = threading.Lock()
         self._jobs: dict[str, dict[str, Any]] = {}
         self._latest_job_id: str | None = None
+        self._latest_job_by_type: dict[str, str] = {}
 
     def start_job(self, command: list[str], cwd: str | None = None, metadata: dict[str, Any] | None = None) -> dict[str, Any]:
         proc = subprocess.Popen(
@@ -39,6 +40,9 @@ class TrainingJobManager:
         with self._lock:
             self._jobs[job_id] = job
             self._latest_job_id = job_id
+            job_type = str((metadata or {}).get("job_type", "")).strip().lower()
+            if job_type:
+                self._latest_job_by_type[job_type] = job_id
 
         self._start_reader_thread(job_id, stream_name="stdout")
         self._start_reader_thread(job_id, stream_name="stderr")
@@ -88,10 +92,14 @@ class TrainingJobManager:
             except Exception:
                 pass
 
-    def get_status(self, job_id: str | None = None) -> dict[str, Any]:
+    def get_status(self, job_id: str | None = None, job_type: str | None = None) -> dict[str, Any]:
         with self._lock:
             if job_id is None:
-                job_id = self._latest_job_id
+                normalized_type = str(job_type or "").strip().lower()
+                if normalized_type:
+                    job_id = self._latest_job_by_type.get(normalized_type)
+                if job_id is None:
+                    job_id = self._latest_job_id
             if job_id is None or job_id not in self._jobs:
                 return {"status": "not_found", "job_id": job_id}
 

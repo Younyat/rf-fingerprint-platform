@@ -164,6 +164,7 @@ def main():
     parser.add_argument("--model-dir", required=True, help="Directory with best_model.pt and enrollment_profiles.json")
     parser.add_argument("--batch-size", type=int, default=256)
     parser.add_argument("--output-json", default="validation_report.json")
+    parser.add_argument("--selected-metadata-path", action="append", default=[])
     args = parser.parse_args()
 
     model_dir = Path(args.model_dir)
@@ -177,6 +178,9 @@ def main():
     embedding_dim = ckpt["embedding_dim"]
 
     val_records = discover_validation_records(Path(args.val_root))
+    if args.selected_metadata_path:
+        selected_set = {str(Path(p).resolve()) for p in args.selected_metadata_path}
+        val_records = [r for r in val_records if str(Path(r["metadata_file"]).resolve()) in selected_set]
     if not val_records:
         raise RuntimeError("No validation records found")
 

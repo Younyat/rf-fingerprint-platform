@@ -42,6 +42,115 @@ function Run-Checked {
     }
 }
 
+$SshCommonArgs = @(
+    "-o", "BatchMode=yes",
+    "-o", "ConnectTimeout=20",
+    "-o", "ServerAliveInterval=15",
+    "-o", "ServerAliveCountMax=3"
+)
+
+function Run-SshChecked {
+    param(
+        [string]$Target,
+        [string]$RemoteCommand,
+        [string]$ErrorMessage
+    )
+    $args = @()
+    $args += $SshCommonArgs
+    $args += $Target
+    $args += $RemoteCommand
+    Run-Checked -FilePath "ssh" -Arguments $args -ErrorMessage $ErrorMessage
+}
+
+function Run-ScpChecked {
+    param(
+        [string]$Source,
+        [string]$Destination,
+        [string]$ErrorMessage
+    )
+    $args = @()
+    $args += $SshCommonArgs
+    $args += $Source
+    $args += $Destination
+    Run-Checked -FilePath "scp" -Arguments $args -ErrorMessage $ErrorMessage
+}
+
+function New-UtcVersionTag {
+    return (Get-Date).ToUniversalTime().ToString("yyyyMMddTHHmmssZ")
+}
+
+function Save-ModelSnapshot {
+    param(
+        [string]$ModelDir,
+        [string]$Reason,
+        [string]$DatasetDir,
+        [string]$RemoteHost,
+        [string]$RemoteUser
+    )
+
+    $modelPath = [System.IO.Path]::GetFullPath($ModelDir)
+    $bestModel = Join-Path $modelPath "best_model.pt"
+    if (-not (Test-Path $bestModel)) {
+        return $null
+    }
+
+    $versionsDir = Join-Path $modelPath "versions"
+    New-Item -ItemType Directory -Force -Path $versionsDir | Out-Null
+
+    $tag = New-UtcVersionTag
+    $versionId = "$tag-$Reason"
+    $snapshotDir = Join-Path $versionsDir $versionId
+    New-Item -ItemType Directory -Force -Path $snapshotDir | Out-Null
+
+    $copyFiles = @(
+        "best_model.pt",
+        "training_history.json",
+        "enrollment_profiles.json",
+        "dataset_manifest.json",
+        "label_map.json",
+        "train_config.json"
+    )
+    foreach ($f in $copyFiles) {
+        $src = Join-Path $modelPath $f
+        if (Test-Path $src) {
+            Copy-Item -Path $src -Destination (Join-Path $snapshotDir $f) -Force
+        }
+    }
+
+    $meta = @{
+        version_id = $versionId
+        reason = $Reason
+        created_at_utc = (Get-Date).ToUniversalTime().ToString("o")
+        model_dir = $modelPath
+        dataset_dir = [System.IO.Path]::GetFullPath($DatasetDir)
+        remote_host = $RemoteHost
+        remote_user = $RemoteUser
+    }
+    $metaPath = Join-Path $snapshotDir "version_meta.json"
+    $meta | ConvertTo-Json -Depth 6 | Set-Content -Encoding UTF8 -Path $metaPath
+
+    $indexPath = Join-Path $versionsDir "index.json"
+    $index = @{ versions = @() }
+    if (Test-Path $indexPath) {
+        try {
+            $loaded = Get-Content -Raw -Path $indexPath | ConvertFrom-Json
+            if ($loaded -and $loaded.versions) {
+                $index.versions = @($loaded.versions)
+            }
+        } catch {
+        }
+    }
+    $index.versions += @{
+        version_id = $versionId
+        reason = $Reason
+        created_at_utc = $meta.created_at_utc
+        snapshot_dir = $snapshotDir
+        model_file = (Join-Path $snapshotDir "best_model.pt")
+    }
+    $index | ConvertTo-Json -Depth 8 | Set-Content -Encoding UTF8 -Path $indexPath
+    return $versionId
+}
+
 function Get-DatasetStats {
     param(
         [string]$DatasetRoot
@@ -174,6 +283,16 @@ elseif ($DatasetStats.SampleRates.Count -ne 1) {
 
 New-Item -ItemType Directory -Force -Path $LocalOutputDir | Out-Null
 
+$PreRetrainSnapshot = Save-ModelSnapshot `
+    -ModelDir $LocalOutputDir `
+    -Reason "before_update" `
+    -DatasetDir $LocalDatasetDir `
+    -RemoteHost $RemoteHost `
+    -RemoteUser $RemoteUser
+if ($PreRetrainSnapshot) {
+    Write-Host "[INFO] Previous model snapshotted as: $PreRetrainSnapshot"
+}
+
 $DatasetZip = Join-Path $env:TEMP "rf_dataset_upload.zip"
 $TempRemoteScript = Join-Path $env:TEMP "run_remote_training.sh"
 $LocalTarOut = Join-Path $LocalOutputDir "model_artifacts.tar.gz"
@@ -209,29 +328,17 @@ Write-Host "[INFO] Compressing dataset..."
 Compress-Archive -Path (Join-Path $LocalDatasetDir "*") -DestinationPath $DatasetZip -Force
 
 Write-Host "[INFO] Preparing remote base directory..."
-Run-Checked -FilePath "ssh" -Arguments @(
-    "$RemoteUser@$RemoteHost",
-    "rm -rf '$RemoteBaseDir' && mkdir -p '$RemoteBaseDir'"
-) -ErrorMessage "Remote base directory preparation failed."
+Run-SshChecked -Target "$RemoteUser@$RemoteHost" -RemoteCommand "rm -rf '$RemoteBaseDir' && mkdir -p '$RemoteBaseDir'" -ErrorMessage "Remote base directory preparation failed."
 
 Write-Host "[INFO] Uploading dataset zip..."
-Run-Checked -FilePath "scp" -Arguments @(
-    $DatasetZip,
-    "$RemoteUser@$RemoteHost`:$RemoteDatasetZip"
-) -ErrorMessage "Dataset upload failed."
+Run-ScpChecked -Source $DatasetZip -Destination "$RemoteUser@$RemoteHost`:$RemoteDatasetZip" -ErrorMessage "Dataset upload failed."
 
 Write-Host "[INFO] Uploading training script..."
-Run-Checked -FilePath "scp" -Arguments @(
-    $LocalTrainScript,
-    "$RemoteUser@$RemoteHost`:$RemoteTrainScript"
-) -ErrorMessage "Training script upload failed."
+Run-ScpChecked -Source $LocalTrainScript -Destination "$RemoteUser@$RemoteHost`:$RemoteTrainScript" -ErrorMessage "Training script upload failed."
 
 if ($InstallRemoteDeps) {
     Write-Host "[INFO] Uploading requirements file..."
-    Run-Checked -FilePath "scp" -Arguments @(
-        $LocalRequirements,
-        "$RemoteUser@$RemoteHost`:$RemoteRequirements"
-    ) -ErrorMessage "Requirements upload failed."
+    Run-ScpChecked -Source $LocalRequirements -Destination "$RemoteUser@$RemoteHost`:$RemoteRequirements" -ErrorMessage "Requirements upload failed."
 }
 
 $ActivateBlock = @'
@@ -361,31 +468,19 @@ $Utf8NoBom = New-Object System.Text.UTF8Encoding($false)
 [System.IO.File]::WriteAllText($TempRemoteScript, $RemoteScriptContent, $Utf8NoBom)
 
 Write-Host "[INFO] Uploading remote runner script..."
-Run-Checked -FilePath "scp" -Arguments @(
-    $TempRemoteScript,
-    "$RemoteUser@$RemoteHost`:$RemoteRunScript"
-) -ErrorMessage "Remote runner script upload failed."
+Run-ScpChecked -Source $TempRemoteScript -Destination "$RemoteUser@$RemoteHost`:$RemoteRunScript" -ErrorMessage "Remote runner script upload failed."
 
 Write-Host "[INFO] Setting execute permission..."
-Run-Checked -FilePath "ssh" -Arguments @(
-    "$RemoteUser@$RemoteHost",
-    "chmod +x '$RemoteRunScript'"
-) -ErrorMessage "chmod on remote script failed."
+Run-SshChecked -Target "$RemoteUser@$RemoteHost" -RemoteCommand "chmod +x '$RemoteRunScript'" -ErrorMessage "chmod on remote script failed."
 
 try {
     Write-Host "[INFO] Launching remote training..."
-    Run-Checked -FilePath "ssh" -Arguments @(
-        "$RemoteUser@$RemoteHost",
-        "'$RemoteRunScript'"
-    ) -ErrorMessage "Remote training execution failed."
+    Run-SshChecked -Target "$RemoteUser@$RemoteHost" -RemoteCommand "'$RemoteRunScript'" -ErrorMessage "Remote training execution failed."
 }
 catch {
     Write-Host "[WARN] Remote training failed. Attempting to download remote log if present..."
     try {
-        Run-Checked -FilePath "scp" -Arguments @(
-            "$RemoteUser@$RemoteHost`:$RemoteLogOut",
-            $LocalLogOut
-        ) -ErrorMessage "Remote log download after failure failed."
+        Run-ScpChecked -Source "$RemoteUser@$RemoteHost`:$RemoteLogOut" -Destination $LocalLogOut -ErrorMessage "Remote log download after failure failed."
     }
     catch {
         Write-Host "[WARN] Could not download remote log after failure."
@@ -394,22 +489,13 @@ catch {
 }
 
 Write-Host "[INFO] Verifying remote artifact exists..."
-Run-Checked -FilePath "ssh" -Arguments @(
-    "$RemoteUser@$RemoteHost",
-    "test -f '$RemoteTarOut' && echo '[OK] Remote artifact exists'"
-) -ErrorMessage "Remote artifact verification failed."
+Run-SshChecked -Target "$RemoteUser@$RemoteHost" -RemoteCommand "test -f '$RemoteTarOut' && echo '[OK] Remote artifact exists'" -ErrorMessage "Remote artifact verification failed."
 
 Write-Host "[INFO] Downloading remote training log..."
-Run-Checked -FilePath "scp" -Arguments @(
-    "$RemoteUser@$RemoteHost`:$RemoteLogOut",
-    $LocalLogOut
-) -ErrorMessage "Remote log download failed."
+Run-ScpChecked -Source "$RemoteUser@$RemoteHost`:$RemoteLogOut" -Destination $LocalLogOut -ErrorMessage "Remote log download failed."
 
 Write-Host "[INFO] Downloading trained model artifacts..."
-Run-Checked -FilePath "scp" -Arguments @(
-    "$RemoteUser@$RemoteHost`:$RemoteTarOut",
-    $LocalTarOut
-) -ErrorMessage "Model artifact download failed."
+Run-ScpChecked -Source "$RemoteUser@$RemoteHost`:$RemoteTarOut" -Destination $LocalTarOut -ErrorMessage "Model artifact download failed."
 
 Write-Host "[INFO] Extracting model locally..."
 Run-Checked -FilePath "tar" -Arguments @(
@@ -433,17 +519,21 @@ foreach ($f in $ExpectedFiles) {
     }
 }
 
+$PostRetrainSnapshot = Save-ModelSnapshot `
+    -ModelDir $LocalOutputDir `
+    -Reason "after_update" `
+    -DatasetDir $LocalDatasetDir `
+    -RemoteHost $RemoteHost `
+    -RemoteUser $RemoteUser
+if ($PostRetrainSnapshot) {
+    Write-Host "[INFO] New model snapshotted as: $PostRetrainSnapshot"
+}
+
 Write-Host "[INFO] Cleaning remote artifacts..."
-Run-Checked -FilePath "ssh" -Arguments @(
-    "$RemoteUser@$RemoteHost",
-    "rm -rf '$RemoteBaseDir'"
-) -ErrorMessage "Remote cleanup failed."
+Run-SshChecked -Target "$RemoteUser@$RemoteHost" -RemoteCommand "rm -rf '$RemoteBaseDir'" -ErrorMessage "Remote cleanup failed."
 
 Write-Host "[INFO] Verifying remote cleanup..."
-Run-Checked -FilePath "ssh" -Arguments @(
-    "$RemoteUser@$RemoteHost",
-    "if [ -e '$RemoteBaseDir' ]; then echo '[ERROR] Remote cleanup failed'; exit 1; else echo '[OK] Remote cleanup verified'; fi"
-) -ErrorMessage "Remote cleanup verification failed."
+Run-SshChecked -Target "$RemoteUser@$RemoteHost" -RemoteCommand "if [ -e '$RemoteBaseDir' ]; then echo '[ERROR] Remote cleanup failed'; exit 1; else echo '[OK] Remote cleanup verified'; fi" -ErrorMessage "Remote cleanup verification failed."
 
 Write-Host "[OK] Remote training finished"
 Write-Host "[OK] Local model available in: $LocalOutputDir"

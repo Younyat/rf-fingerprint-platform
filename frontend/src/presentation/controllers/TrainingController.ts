@@ -9,4 +9,8 @@ export class TrainingController {
     return this.api.get<any>(`/training/status${suffix}`);
   }
   models() { return this.api.get<any[]>("/training/models"); }
+  dashboard(localOutputDir?: string) {
+    const suffix = localOutputDir ? `?local_output_dir=${encodeURIComponent(localOutputDir)}` : "";
+    return this.api.get<any>(`/training/dashboard${suffix}`);
+  }
 }

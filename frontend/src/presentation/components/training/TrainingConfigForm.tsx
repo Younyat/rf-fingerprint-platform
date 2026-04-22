@@ -1,5 +1,7 @@
-﻿import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { TrainingController } from "../../controllers/TrainingController";
+
+const TRAINING_JOB_KEY = "rfp.training.jobId";
 
 export function TrainingConfigForm() {
   const controller = useMemo(() => new TrainingController(), []);
@@ -7,7 +9,7 @@ export function TrainingConfigForm() {
   const [error, setError] = useState("");
   const [startResult, setStartResult] = useState<any>(null);
   const [jobStatus, setJobStatus] = useState<any>(null);
-  const [jobId, setJobId] = useState<string>("");
+  const [jobId, setJobId] = useState<string>(() => localStorage.getItem(TRAINING_JOB_KEY) || "");
   const pollRef = useRef<number | null>(null);
 
   const [form, setForm] = useState({
@@ -29,10 +31,14 @@ export function TrainingConfigForm() {
     }
   };
 
-  const pollStatus = async (id: string) => {
+  const pollStatus = async (id?: string) => {
     try {
       const status = await controller.status(id);
       setJobStatus(status);
+      if (status?.job_id) {
+        setJobId(status.job_id);
+        localStorage.setItem(TRAINING_JOB_KEY, status.job_id);
+      }
       if (status.status === "completed" || status.status === "failed") {
         stopPolling();
       }
@@ -40,6 +46,14 @@ export function TrainingConfigForm() {
       setError(String(err));
       stopPolling();
     }
+  };
+
+  const startPolling = (id?: string) => {
+    stopPolling();
+    void pollStatus(id);
+    pollRef.current = window.setInterval(() => {
+      void pollStatus(id || jobId || undefined);
+    }, 2000);
   };
 
   const submit = async (e: FormEvent) => {
@@ -55,10 +69,8 @@ export function TrainingConfigForm() {
       setStartResult(res);
       if (res?.job_id) {
         setJobId(res.job_id);
-        await pollStatus(res.job_id);
-        pollRef.current = window.setInterval(() => {
-          void pollStatus(res.job_id);
-        }, 2000);
+        localStorage.setItem(TRAINING_JOB_KEY, res.job_id);
+        startPolling(res.job_id);
       }
     } catch (err: any) {
       setError(String(err));
@@ -67,7 +79,17 @@ export function TrainingConfigForm() {
     }
   };
 
-  useEffect(() => () => stopPolling(), []);
+  useEffect(() => {
+    if (jobId) {
+      startPolling(jobId);
+      return () => stopPolling();
+    }
+    void pollStatus(undefined);
+    return () => stopPolling();
+  }, []);
+
+  const effectiveStatus = String(jobStatus?.status || startResult?.status || "").toLowerCase();
+  const isTrainingRunning = loading || effectiveStatus === "running";
 
   return (
     <div className="panel">
@@ -79,7 +101,11 @@ export function TrainingConfigForm() {
         <input value={form.local_dataset_dir} onChange={(e) => setForm({ ...form, local_dataset_dir: e.target.value })} placeholder="dataset dir" />
         <input value={form.local_output_dir} onChange={(e) => setForm({ ...form, local_output_dir: e.target.value })} placeholder="output dir" />
         <input type="number" value={form.epochs} onChange={(e) => setForm({ ...form, epochs: Number(e.target.value) })} placeholder="epochs" />
-        <button disabled={loading} type="submit">{loading ? "Lanzando..." : "Lanzar training remoto"}</button>
+        <button disabled={isTrainingRunning} type="submit">
+          {isTrainingRunning
+            ? `Entrenando en curso... ${jobStatus?.job_id || startResult?.job_id || jobId || ""}`.trim()
+            : "Lanzar training remoto"}
+        </button>
       </form>
 
       {error && <pre style={{ color: "#b42318", whiteSpace: "pre-wrap" }}>{error}</pre>}
@@ -94,6 +120,7 @@ export function TrainingConfigForm() {
       {jobStatus && (
         <div style={{ marginTop: 12 }}>
           <h4>Estado: {jobStatus.status}</h4>
+          <div><strong>Job ID:</strong> {jobStatus.job_id || jobId || "-"}</div>
           <div><strong>Return code:</strong> {String(jobStatus.returncode)}</div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginTop: 8 }}>
             <div>
