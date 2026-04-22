@@ -1,49 +1,51 @@
-﻿# RF Fingerprint Platform
+# RF Fingerprint Platform
 
-Plataforma para captura RF, gestión de datasets, entrenamiento remoto, validación e inferencia.
+Plataforma para captura RF, gestión de datasets, entrenamiento remoto, reentrenamiento continuo, validación e inferencia/predicción.
 
 ## Arquitectura
 
-- Frontend: MVC liviano (React + TypeScript + Vite)
-- Backend: Clean Architecture (Domain, Application, Infrastructure, Presentation)
+- Frontend: React + TypeScript + Vite (MVC liviano por vistas/controladores/componentes).
+- Backend: FastAPI con capas separadas (domain/application/infrastructure/presentation).
 
 ## Estructura operativa
 
 - Backend API: `backend/app`
 - Frontend: `frontend/`
 - Scripts RF integrados: `backend/app/infrastructure/scripts/`
-- Datos locales del proyecto (capturas/datasets/modelos): `data/`
+- Datos locales del proyecto: `data/`
+
+Directorios de datos principales:
+
+- Train dataset: `data/rf_dataset`
+- Validation dataset: `data/rf_dataset_val`
+- Prediction dataset: `data/rf_dataset_predict`
+- Modelo y snapshots: `data/remote_trained_model`
+- Validación: `data/validation`
+- Inferencia: `data/inference`
 
 ## URLs
 
-- Frontend dashboard: `http://localhost:5173`
-- Backend API docs: `http://127.0.0.1:8000/docs`
-- Health backend: `http://127.0.0.1:8000/health`
+- Frontend: `http://localhost:5173`
+- Backend docs: `http://127.0.0.1:8000/docs`
+- Backend health: `http://127.0.0.1:8000/health`
 
-## Arranque recomendado (PowerShell)
+## Arranque rápido (PowerShell)
 
-### Backend con auto-setup SSH (password solo una vez)
+### 1) Backend (con setup SSH opcional)
 
-Desde la raíz del proyecto:
+Desde raíz del proyecto:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\start_backend.ps1 -RemoteUser "assouyat" -RemoteHost "192.168.193.49"
 ```
 
-Qué hace `start_backend.ps1`:
-
-1. Genera `~/.ssh/id_ed25519` si no existe.
-2. Prueba SSH sin password.
-3. Si aún no está configurado, instala tu clave pública en remoto (aquí te pedirá password una vez).
-4. Arranca backend (`uvicorn`).
-
-Si quieres arrancar backend sin tocar SSH:
+Si no quieres configurar SSH en ese arranque:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\start_backend.ps1 -SkipSshSetup
 ```
 
-### Frontend
+### 2) Frontend
 
 ```powershell
 cd frontend
@@ -51,49 +53,62 @@ npm.cmd install
 npm.cmd run dev
 ```
 
-## Arranque manual backend
+## Flujo recomendado
 
-```powershell
-cd backend
-C:\Users\Usuario\radioconda\python.exe -m pip install -r ..\requirements.txt
-C:\Users\Usuario\radioconda\python.exe -m uvicorn app.main:app --reload --port 8000
-```
+1. `Capture`: captura en `train`, `val` o `predict`.
+2. `Training`: entrenamiento remoto inicial.
+3. `Retraining`: reentrenamiento continuo con dashboard y snapshots.
+4. `Validation`: validación científica sobre subset de `val`.
+5. `Inference`: predicción sobre capturas de `predict`.
 
-## Flujo mínimo funcional
+## Notas clave de entrenamiento/reentrenamiento
 
-1. Entra en `http://localhost:5173/capture` y captura en `train` o `val`.
-2. Entra en `http://localhost:5173/training` para lanzar entrenamiento remoto.
-3. Entra en `http://localhost:5173/validation` para validar contra dataset `val`.
+- Los jobs de training/retraining/capture/validation/prediction continúan al cambiar de pestaña.
+- El botón de lanzar queda deshabilitado mientras el job está en `running`.
+- El reentrenamiento ahora snapshottea el modelo local:
+  - `before_update`
+  - `after_update`
+- Snapshots en `data/remote_trained_model/versions`.
 
-## Datos y Git
+## SSH para entrenamiento remoto
 
-No se versionan capturas ni artefactos:
+Para evitar bloqueos en training remoto, se recomienda clave SSH sin password interactivo.
+
+El deploy remoto usa modo batch (sin prompt), por lo que si no hay clave válida fallará rápido en lugar de quedarse colgado.
+
+## Git y artefactos
+
+No se deben versionar capturas ni artefactos de entrenamiento.
+
+Ejemplos ignorados:
 
 - `data/`
-- `*.cfile`, `*.pt`, `*.pth`, `*.h5`
-
-Configurado en `.gitignore`.
+- `*.cfile`, `*.pt`, `*.pth`, `*.h5`, `*.tar.gz`
 
 ## Troubleshooting rápido
 
 ### PowerShell bloquea `npm`
 
-Usa `npm.cmd` en lugar de `npm`:
+Usa `npm.cmd`:
 
 ```powershell
 npm.cmd install
 npm.cmd run dev
 ```
 
-### `No module named 'app'` al arrancar backend
+### `No module named 'app'`
 
-Lanza uvicorn desde carpeta `backend`:
+Arranca `uvicorn` desde `backend`:
 
 ```powershell
 cd backend
 C:\Users\Usuario\radioconda\python.exe -m uvicorn app.main:app --reload --port 8000
 ```
 
-### Error BOM `Unexpected token '﻿'` en Vite/PostCSS
+### Vite/esbuild `spawn EPERM`
 
-Regraba JSON de configuración en UTF-8 sin BOM (ya corregido en el repo).
+```powershell
+cd frontend
+npm.cmd rebuild esbuild
+npm.cmd run dev
+```
