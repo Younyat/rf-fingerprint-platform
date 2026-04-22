@@ -1,2 +1,7 @@
-import { jsx as _jsx } from "react/jsx-runtime";
-export function PerDeviceValidationTable() { return _jsx("div", { className: "panel", children: "PerDeviceValidationTable" }); }
+import { jsx as _jsx, jsxs as _jsxs } from "react/jsx-runtime";
+function pct(value) {
+    return `${(value * 100).toFixed(2)}%`;
+}
+export function PerDeviceValidationTable({ rows }) {
+    return (_jsxs("section", { className: "panel", children: [_jsx("h3", { children: "Per Device Validation" }), _jsx("div", { className: "validation-table-wrap", children: _jsxs("table", { className: "validation-table", children: [_jsx("thead", { children: _jsxs("tr", { children: [_jsx("th", { children: "Device" }), _jsx("th", { children: "Records" }), _jsx("th", { children: "Sessions" }), _jsx("th", { children: "Record Accuracy" }), _jsx("th", { children: "Accept Rate" }), _jsx("th", { children: "Suspicious Rate" }), _jsx("th", { children: "Mean Distance" }), _jsx("th", { children: "Mean Threshold" })] }) }), _jsxs("tbody", { children: [rows.map((row) => (_jsxs("tr", { children: [_jsx("td", { children: row.device }), _jsx("td", { children: row.records }), _jsx("td", { children: row.sessions }), _jsx("td", { children: pct(row.recordAccuracy) }), _jsx("td", { children: pct(row.acceptRate) }), _jsx("td", { children: pct(row.suspiciousRate) }), _jsx("td", { children: row.meanDistance.toFixed(4) }), _jsx("td", { children: row.meanThreshold.toFixed(4) })] }, row.device))), rows.length === 0 && (_jsx("tr", { children: _jsx("td", { colSpan: 8, children: "No per-device data available." }) }))] })] }) })] }));
+}

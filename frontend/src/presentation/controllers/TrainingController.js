@@ -5,6 +5,9 @@ export class TrainingController {
     }
     start(payload) { return this.api.post("/training/start", payload); }
     retrain(payload) { return this.api.post("/training/retrain", payload); }
-    status() { return this.api.get("/training/status"); }
+    status(jobId) {
+        const suffix = jobId ? `?job_id=${encodeURIComponent(jobId)}` : "";
+        return this.api.get(`/training/status${suffix}`);
+    }
     models() { return this.api.get("/training/models"); }
 }

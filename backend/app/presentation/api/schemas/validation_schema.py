@@ -1,4 +1,4 @@
-﻿from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class ValidationRunRequest(BaseModel):
@@ -7,3 +7,4 @@ class ValidationRunRequest(BaseModel):
     output_json: str = "validation_report.json"
     batch_size: int = 256
     python_exe: str = ""
+    selected_metadata_paths: list[str] = Field(default_factory=list)

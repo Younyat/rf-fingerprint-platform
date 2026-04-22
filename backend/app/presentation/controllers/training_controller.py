@@ -17,8 +17,8 @@ class TrainingController:
     def retrain(self, payload: dict) -> dict:
         return self.retrain_uc.execute(payload)
 
-    def status(self) -> dict:
-        return self.status_uc.execute()
+    def status(self, job_id: str | None = None) -> dict:
+        return self.status_uc.execute(job_id=job_id)
 
     def list_models(self) -> list[dict]:
         return self.list_models_uc.execute()

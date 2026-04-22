@@ -1,12 +1,16 @@
 ﻿import { useEffect, useState } from "react";
 import { DatasetController } from "../../controllers/DatasetController";
 
-export function DatasetStatsPanel() {
+interface DatasetStatsPanelProps {
+  refreshToken?: number;
+}
+
+export function DatasetStatsPanel({ refreshToken }: DatasetStatsPanelProps) {
   const [stats, setStats] = useState<any>(null);
 
   useEffect(() => {
     new DatasetController().stats().then(setStats).catch(() => setStats(null));
-  }, []);
+  }, [refreshToken]);
 
   return (
     <div className="panel">

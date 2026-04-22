@@ -6,6 +6,7 @@ from app.application.use_cases.capture.list_captures_use_case import ListCapture
 from app.application.use_cases.dataset.build_dataset_manifest_use_case import BuildDatasetManifestUseCase
 from app.application.use_cases.dataset.check_dataset_quality_use_case import CheckDatasetQualityUseCase
 from app.application.use_cases.dataset.create_dataset_record_use_case import CreateDatasetRecordUseCase
+from app.application.use_cases.dataset.delete_dataset_records_use_case import DeleteDatasetRecordsUseCase
 from app.application.use_cases.dataset.list_dataset_records_use_case import ListDatasetRecordsUseCase
 from app.application.use_cases.inference.classify_capture_use_case import ClassifyCaptureUseCase
 from app.application.use_cases.inference.detect_unknown_device_use_case import DetectUnknownDeviceUseCase
@@ -34,6 +35,7 @@ from app.infrastructure.persistence.filesystem.dataset_fs_repository import Data
 from app.infrastructure.persistence.filesystem.model_fs_repository import ModelFSRepository
 from app.infrastructure.persistence.filesystem.validation_fs_repository import ValidationFSRepository
 from app.infrastructure.remote.ssh_remote_executor import SSHRemoteExecutor
+from app.infrastructure.remote.training_job_manager import TrainingJobManager
 from app.presentation.controllers.capture_controller import CaptureController
 from app.presentation.controllers.dataset_controller import DatasetController
 from app.presentation.controllers.inference_controller import InferenceController
@@ -60,11 +62,17 @@ def build_container() -> Container:
     ensure_dirs()
 
     capture_repo = CaptureFSRepository(CAPTURES_DIR)
-    dataset_repo = DatasetFSRepository(DATASETS_DIR)
+    dataset_repo = DatasetFSRepository(
+        DATASETS_DIR,
+        train_capture_root=TRAIN_DATASET_DIR,
+        val_capture_root=VAL_DATASET_DIR,
+        capture_index_dir=CAPTURES_DIR,
+    )
     model_repo = ModelFSRepository(MODELS_DIR)
     validation_repo = ValidationFSRepository(VALIDATION_REPORTS_DIR)
 
     executor = SSHRemoteExecutor()
+    job_manager = TrainingJobManager()
     default_python = "C:/Users/Usuario/radioconda/python.exe"
 
     create_capture_uc = CreateCaptureUseCase(
@@ -79,12 +87,13 @@ def build_container() -> Container:
     get_capture_uc = GetCaptureDetailUseCase(capture_repo)
 
     create_record_uc = CreateDatasetRecordUseCase(dataset_repo)
+    delete_records_uc = DeleteDatasetRecordsUseCase(dataset_repo)
     list_records_uc = ListDatasetRecordsUseCase(dataset_repo)
     build_manifest_uc = BuildDatasetManifestUseCase(dataset_repo)
     quality_uc = CheckDatasetQualityUseCase(DatasetPolicyService())
 
     launch_uc = LaunchRemoteTrainingUseCase(
-        executor=executor,
+        job_manager=job_manager,
         scripts_dir=SCRIPTS_DIR,
         train_dataset_dir=TRAIN_DATASET_DIR,
         model_output_dir=MODEL_OUTPUT_DIR,
@@ -92,7 +101,7 @@ def build_container() -> Container:
     )
     retrain_uc = RetrainModelUseCase(launch_uc)
     list_models_uc = ListModelVersionsUseCase(model_repo)
-    status_uc = GetTrainingStatusUseCase()
+    status_uc = GetTrainingStatusUseCase(job_manager=job_manager)
 
     validate_uc = ValidateModelUseCase(
         executor=executor,
@@ -109,7 +118,7 @@ def build_container() -> Container:
 
     return Container(
         capture_controller=CaptureController(create_capture_uc, list_captures_uc, get_capture_uc),
-        dataset_controller=DatasetController(create_record_uc, list_records_uc, build_manifest_uc, quality_uc),
+        dataset_controller=DatasetController(create_record_uc, list_records_uc, build_manifest_uc, quality_uc, delete_records_uc),
         training_controller=TrainingController(launch_uc, retrain_uc, list_models_uc, status_uc),
         validation_controller=ValidationController(validate_uc),
         inference_controller=InferenceController(classify_uc, verify_uc, detect_uc),

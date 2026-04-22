@@ -6,4 +6,7 @@ export class DatasetController {
     train() { return this.api.get("/datasets/train"); }
     val() { return this.api.get("/datasets/val"); }
     stats() { return this.api.get("/datasets/stats"); }
+    deleteRecords(records) {
+        return this.api.post("/datasets/delete", { records });
+    }
 }

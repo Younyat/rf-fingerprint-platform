@@ -1,86 +1,99 @@
 ﻿# RF Fingerprint Platform
 
-RF Fingerprint Platform is a structured environment for RF signal capture, dataset generation, remote model training, retraining, validation, and inference.
+Plataforma para captura RF, gestión de datasets, entrenamiento remoto, validación e inferencia.
 
-## Overview
+## Arquitectura
 
-The project is organized as two independent application layers that are launched separately:
+- Frontend: MVC liviano (React + TypeScript + Vite)
+- Backend: Clean Architecture (Domain, Application, Infrastructure, Presentation)
 
-- A frontend application for user interaction and workflow control
-- A backend service for orchestration, processing, and model-related operations
+## Estructura operativa
 
-## Architecture
+- Backend API: `backend/app`
+- Frontend: `frontend/`
+- Scripts RF integrados: `backend/app/infrastructure/scripts/`
+- Datos locales del proyecto (capturas/datasets/modelos): `data/`
+
+## URLs
+
+- Frontend dashboard: `http://localhost:5173`
+- Backend API docs: `http://127.0.0.1:8000/docs`
+- Health backend: `http://127.0.0.1:8000/health`
+
+## Arranque recomendado (PowerShell)
+
+### Backend con auto-setup SSH (password solo una vez)
+
+Desde la raíz del proyecto:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\start_backend.ps1 -RemoteUser "assouyat" -RemoteHost "192.168.193.49"
+```
+
+Qué hace `start_backend.ps1`:
+
+1. Genera `~/.ssh/id_ed25519` si no existe.
+2. Prueba SSH sin password.
+3. Si aún no está configurado, instala tu clave pública en remoto (aquí te pedirá password una vez).
+4. Arranca backend (`uvicorn`).
+
+Si quieres arrancar backend sin tocar SSH:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\start_backend.ps1 -SkipSshSetup
+```
 
 ### Frontend
 
-The frontend follows a lightweight MVC-oriented organization based on React and TypeScript.
-
-### Backend
-
-The backend follows Clean Architecture principles with separation between Domain, Application, Infrastructure, and Presentation responsibilities.
-
-## Repository structure
-
-```text
-rf-fingerprint-platform/
-├── backend/
-├── frontend/
-├── docs/
-├── requirements.txt
-├── pyproject.toml
-└── README.md
-```
-
-## How to run the project
-
-Frontend and backend must be started in separate terminals.
-
-### Run the frontend
-
-Open a terminal and move to the frontend directory:
-
 ```powershell
-cd C:\Users\Usuario\Desktop\NICS\TrasDetector\rf-fingerprint-platform\frontend
-```
-
-Then start the frontend development server:
-
-```powershell
+cd frontend
+npm.cmd install
 npm.cmd run dev
 ```
 
-### Run the backend
-
-Open a different terminal and start the backend service with the Python interpreter you are currently using:
+## Arranque manual backend
 
 ```powershell
-C:\Users\Usuario\radioconda\python.exe -m uvicorn app.main:app --reload --port 8010
+cd backend
+C:\Users\Usuario\radioconda\python.exe -m pip install -r ..\requirements.txt
+C:\Users\Usuario\radioconda\python.exe -m uvicorn app.main:app --reload --port 8000
 ```
 
-## Development notes
+## Flujo mínimo funcional
 
-- The frontend and backend are independent runtime components
-- Both services must remain active during development
-- The backend is currently exposed on port 8010
-- The project should evolve without breaking the validated logic already available in the current codebase
+1. Entra en `http://localhost:5173/capture` y captura en `train` o `val`.
+2. Entra en `http://localhost:5173/training` para lanzar entrenamiento remoto.
+3. Entra en `http://localhost:5173/validation` para validar contra dataset `val`.
 
-## Functional scope
+## Datos y Git
 
-The platform is intended to support the following workflow:
+No se versionan capturas ni artefactos:
 
-1. RF capture configuration
-2. Dataset generation by device and acquisition session
-3. Remote training execution
-4. Model retraining when new device data is incorporated
-5. Validation with dedicated captured datasets
-6. Operational inference using trained models
+- `data/`
+- `*.cfile`, `*.pt`, `*.pth`, `*.h5`
 
-## Engineering direction
+Configurado en `.gitignore`.
 
-The project is being structured to support a cleaner and more maintainable implementation while preserving existing validated components and scripts.
+## Troubleshooting rápido
 
-The target direction is a professional separation of concerns across user interaction, application orchestration, domain logic, and infrastructure-specific execution.
+### PowerShell bloquea `npm`
 
-## Current status
+Usa `npm.cmd` en lugar de `npm`:
 
-Initial repository structure is under active development.
+```powershell
+npm.cmd install
+npm.cmd run dev
+```
+
+### `No module named 'app'` al arrancar backend
+
+Lanza uvicorn desde carpeta `backend`:
+
+```powershell
+cd backend
+C:\Users\Usuario\radioconda\python.exe -m uvicorn app.main:app --reload --port 8000
+```
+
+### Error BOM `Unexpected token '﻿'` en Vite/PostCSS
+
+Regraba JSON de configuración en UTF-8 sin BOM (ya corregido en el repo).

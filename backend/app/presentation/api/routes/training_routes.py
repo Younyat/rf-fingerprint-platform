@@ -1,4 +1,4 @@
-﻿from fastapi import APIRouter, Depends, HTTPException
+﻿from fastapi import APIRouter, Depends, HTTPException, Query
 
 from app.infrastructure.di.container import get_container
 from app.presentation.api.schemas.training_schema import LaunchTrainingRequest
@@ -23,8 +23,8 @@ def retrain(req: LaunchTrainingRequest, container=Depends(get_container)):
 
 
 @router.get("/status")
-def status(container=Depends(get_container)):
-    return container.training_controller.status()
+def status(job_id: str | None = Query(default=None), container=Depends(get_container)):
+    return container.training_controller.status(job_id=job_id)
 
 
 @router.get("/models")

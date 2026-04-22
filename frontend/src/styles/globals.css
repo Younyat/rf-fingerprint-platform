@@ -25,3 +25,161 @@ main { padding: 16px; }
 }
 .grid { display: grid; gap: 12px; }
 .grid-2 { grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
+
+.validation-hero {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: linear-gradient(135deg, #0f4ba8, #0b7db8);
+  color: #ffffff;
+}
+
+.validation-hero p {
+  margin: 8px 0 0;
+  color: #dbeafe;
+}
+
+.validation-hero-badge {
+  background: rgba(255, 255, 255, 0.15);
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  border-radius: 999px;
+  padding: 6px 12px;
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.validation-capture-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.validation-capture-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.validation-selection-info {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.validation-table-wrap {
+  max-height: 380px;
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+
+.validation-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.validation-table th,
+.validation-table td {
+  border-bottom: 1px solid var(--line);
+  padding: 8px;
+  text-align: left;
+  vertical-align: top;
+}
+
+.small-path {
+  font-size: 12px;
+  color: #334155;
+}
+
+.validation-summary-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.quality {
+  display: inline-block;
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-size: 12px;
+  border: 1px solid transparent;
+}
+
+.quality-high {
+  background: #e7f7ec;
+  color: #116329;
+  border-color: #9bd8ae;
+}
+
+.quality-medium {
+  background: #fff7e8;
+  color: #915f00;
+  border-color: #f2cc7b;
+}
+
+.quality-low {
+  background: #fdeaea;
+  color: #9c1b1b;
+  border-color: #e7a3a3;
+}
+
+.validation-kpi-grid {
+  margin-top: 12px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 8px;
+}
+
+.validation-kpi {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 8px;
+  background: #f8fbff;
+}
+
+.kpi-label {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.kpi-value {
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.validation-interpretation {
+  margin-top: 12px;
+  padding: 10px;
+  border-radius: 10px;
+  background: #f5f7ff;
+  border: 1px solid #dbe2ff;
+}
+
+.validation-warnings {
+  margin-top: 12px;
+  padding: 10px;
+  border-radius: 10px;
+  background: #fff5f5;
+  border: 1px solid #f4c6c6;
+}
+
+.validation-warnings ul {
+  margin: 6px 0 0;
+  padding-left: 20px;
+}
+
+.log-box {
+  background: #f8fafc;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 8px;
+  max-height: 260px;
+  overflow: auto;
+  white-space: pre-wrap;
+}
+
+.error-log {
+  background: #fff1f2;
+}

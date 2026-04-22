@@ -1,11 +1,14 @@
 import { jsx as _jsx, jsxs as _jsxs } from "react/jsx-runtime";
-import { useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { TrainingController } from "../../controllers/TrainingController";
 export function TrainingConfigForm() {
-    const controller = new TrainingController();
+    const controller = useMemo(() => new TrainingController(), []);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState("");
-    const [result, setResult] = useState(null);
+    const [startResult, setStartResult] = useState(null);
+    const [jobStatus, setJobStatus] = useState(null);
+    const [jobId, setJobId] = useState("");
+    const pollRef = useRef(null);
     const [form, setForm] = useState({
         remote_user: "assouyat",
         remote_host: "192.168.193.49",
@@ -17,13 +20,42 @@ export function TrainingConfigForm() {
         local_dataset_dir: "rf_dataset",
         local_output_dir: "remote_trained_model",
     });
+    const stopPolling = () => {
+        if (pollRef.current !== null) {
+            window.clearInterval(pollRef.current);
+            pollRef.current = null;
+        }
+    };
+    const pollStatus = async (id) => {
+        try {
+            const status = await controller.status(id);
+            setJobStatus(status);
+            if (status.status === "completed" || status.status === "failed") {
+                stopPolling();
+            }
+        }
+        catch (err) {
+            setError(String(err));
+            stopPolling();
+        }
+    };
     const submit = async (e) => {
         e.preventDefault();
         setLoading(true);
         setError("");
+        setStartResult(null);
+        setJobStatus(null);
+        stopPolling();
         try {
             const res = await controller.start(form);
-            setResult(res);
+            setStartResult(res);
+            if (res?.job_id) {
+                setJobId(res.job_id);
+                await pollStatus(res.job_id);
+                pollRef.current = window.setInterval(() => {
+                    void pollStatus(res.job_id);
+                }, 2000);
+            }
         }
         catch (err) {
             setError(String(err));
@@ -32,5 +64,6 @@ export function TrainingConfigForm() {
             setLoading(false);
         }
     };
-    return (_jsxs("div", { className: "panel", children: [_jsx("h3", { children: "Remote Training" }), _jsxs("form", { onSubmit: submit, className: "grid", children: [_jsx("input", { value: form.remote_user, onChange: (e) => setForm({ ...form, remote_user: e.target.value }), placeholder: "remote user" }), _jsx("input", { value: form.remote_host, onChange: (e) => setForm({ ...form, remote_host: e.target.value }), placeholder: "remote host" }), _jsx("input", { value: form.remote_venv_activate, onChange: (e) => setForm({ ...form, remote_venv_activate: e.target.value }), placeholder: "venv activate path" }), _jsx("input", { value: form.local_dataset_dir, onChange: (e) => setForm({ ...form, local_dataset_dir: e.target.value }), placeholder: "dataset dir" }), _jsx("input", { value: form.local_output_dir, onChange: (e) => setForm({ ...form, local_output_dir: e.target.value }), placeholder: "output dir" }), _jsx("input", { type: "number", value: form.epochs, onChange: (e) => setForm({ ...form, epochs: Number(e.target.value) }), placeholder: "epochs" }), _jsx("button", { disabled: loading, type: "submit", children: loading ? "Entrenando..." : "Lanzar training remoto" })] }), error && _jsx("pre", { style: { color: "#b42318", whiteSpace: "pre-wrap" }, children: error }), result && _jsx("pre", { style: { whiteSpace: "pre-wrap" }, children: JSON.stringify(result, null, 2) })] }));
+    useEffect(() => () => stopPolling(), []);
+    return (_jsxs("div", { className: "panel", children: [_jsx("h3", { children: "Remote Training" }), _jsxs("form", { onSubmit: submit, className: "grid", children: [_jsx("input", { value: form.remote_user, onChange: (e) => setForm({ ...form, remote_user: e.target.value }), placeholder: "remote user" }), _jsx("input", { value: form.remote_host, onChange: (e) => setForm({ ...form, remote_host: e.target.value }), placeholder: "remote host" }), _jsx("input", { value: form.remote_venv_activate, onChange: (e) => setForm({ ...form, remote_venv_activate: e.target.value }), placeholder: "venv activate path" }), _jsx("input", { value: form.local_dataset_dir, onChange: (e) => setForm({ ...form, local_dataset_dir: e.target.value }), placeholder: "dataset dir" }), _jsx("input", { value: form.local_output_dir, onChange: (e) => setForm({ ...form, local_output_dir: e.target.value }), placeholder: "output dir" }), _jsx("input", { type: "number", value: form.epochs, onChange: (e) => setForm({ ...form, epochs: Number(e.target.value) }), placeholder: "epochs" }), _jsx("button", { disabled: loading, type: "submit", children: loading ? "Lanzando..." : "Lanzar training remoto" })] }), error && _jsx("pre", { style: { color: "#b42318", whiteSpace: "pre-wrap" }, children: error }), startResult && (_jsxs("div", { style: { marginTop: 12 }, children: [_jsx("strong", { children: "Job ID:" }), " ", jobId, _jsx("pre", { style: { whiteSpace: "pre-wrap" }, children: JSON.stringify(startResult, null, 2) })] })), jobStatus && (_jsxs("div", { style: { marginTop: 12 }, children: [_jsxs("h4", { children: ["Estado: ", jobStatus.status] }), _jsxs("div", { children: [_jsx("strong", { children: "Return code:" }), " ", String(jobStatus.returncode)] }), _jsxs("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginTop: 8 }, children: [_jsxs("div", { children: [_jsx("h5", { children: "STDOUT" }), _jsx("pre", { style: { whiteSpace: "pre-wrap", maxHeight: 320, overflow: "auto", background: "#f8fafc", padding: 8 }, children: jobStatus.stdout || "" })] }), _jsxs("div", { children: [_jsx("h5", { children: "STDERR" }), _jsx("pre", { style: { whiteSpace: "pre-wrap", maxHeight: 320, overflow: "auto", background: "#fff1f2", padding: 8 }, children: jobStatus.stderr || "" })] })] })] }))] }));
 }

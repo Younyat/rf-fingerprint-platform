@@ -16,3 +16,7 @@ class DatasetRepository(ABC):
     @abstractmethod
     def build_manifest(self, split: str | None = None) -> dict:
         raise NotImplementedError
+
+    @abstractmethod
+    def delete_records(self, records: list[dict]) -> dict:
+        raise NotImplementedError

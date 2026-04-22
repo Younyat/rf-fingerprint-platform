@@ -1,19 +1,19 @@
 ﻿from pathlib import Path
 
 from app.infrastructure.remote.remote_training_packager import build_deploy_command
-from app.infrastructure.remote.ssh_remote_executor import SSHRemoteExecutor
+from app.infrastructure.remote.training_job_manager import TrainingJobManager
 
 
 class LaunchRemoteTrainingUseCase:
     def __init__(
         self,
-        executor: SSHRemoteExecutor,
+        job_manager: TrainingJobManager,
         scripts_dir: Path,
         train_dataset_dir: Path,
         model_output_dir: Path,
         requirements_path: Path,
     ) -> None:
-        self.executor = executor
+        self.job_manager = job_manager
         self.scripts_dir = scripts_dir
         self.train_dataset_dir = train_dataset_dir
         self.model_output_dir = model_output_dir
@@ -49,4 +49,13 @@ class LaunchRemoteTrainingUseCase:
             stride=int(payload.get("stride", 1024)),
         )
 
-        return self.executor.run(cmd, cwd=str(self.scripts_dir))
+        return self.job_manager.start_job(
+            command=cmd,
+            cwd=str(self.scripts_dir),
+            metadata={
+                "remote_user": payload.get("remote_user"),
+                "remote_host": payload.get("remote_host"),
+                "local_dataset_dir": str(local_dataset),
+                "local_output_dir": str(local_output),
+            },
+        )
